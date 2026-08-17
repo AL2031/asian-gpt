@@ -12,11 +12,17 @@ function uid() {
   return Math.random().toString(36).slice(2) + Date.now().toString(36);
 }
 
+function errorMessage(data: { error?: string; detail?: string }, fallback: string) {
+  const base = data.error || fallback;
+  return data.detail ? `${base}: ${data.detail}` : base;
+}
+
 export default function Home() {
   const [messages, setMessages] = useState<ChatMessage[]>([]);
   const [input, setInput] = useState("");
   const [mode, setMode] = useState<"chat" | "generate">("chat");
   const [attachedImage, setAttachedImage] = useState<string | null>(null);
+  const [attachMode, setAttachMode] = useState<"ask" | "edit">("ask");
   const [busy, setBusy] = useState(false);
   const [sidebarOpen, setSidebarOpen] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -45,7 +51,11 @@ export default function Home() {
     setBusy(true);
 
     if (attachedImage) {
-      await handleEditImage(text, attachedImage);
+      if (attachMode === "edit") {
+        await handleEditImage(text, attachedImage);
+      } else {
+        await handleChat(text, attachedImage);
+      }
       setAttachedImage(null);
     } else if (mode === "generate") {
       await handleGenerateImage(text);
@@ -56,8 +66,10 @@ export default function Home() {
     setBusy(false);
   }
 
-  async function handleChat(text: string) {
-    const userMsg: ChatMessage = { id: uid(), role: "user", content: text, kind: "text" };
+  /** Handles both plain text chat and "look at this image" requests - Groq
+   *  switches to a vision-capable model automatically when an image is present. */
+  async function handleChat(text: string, image?: string) {
+    const userMsg: ChatMessage = { id: uid(), role: "user", content: text, kind: "text", image };
     const history = [...messages, userMsg];
     pushMessage(userMsg);
 
@@ -69,13 +81,13 @@ export default function Home() {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          messages: history.map((m) => ({ role: m.role, content: m.content })),
+          messages: history.map((m) => ({ role: m.role, content: m.content, image: m.image })),
         }),
       });
 
       if (!res.ok || !res.body) {
         const data = await res.json().catch(() => ({}));
-        throw new Error(data.error || `Chat request failed (${res.status})`);
+        throw new Error(errorMessage(data, `Chat request failed (${res.status})`));
       }
 
       const reader = res.body.getReader();
@@ -140,7 +152,7 @@ export default function Home() {
         body: JSON.stringify({ prompt }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `Image generation failed (${res.status})`);
+      if (!res.ok) throw new Error(errorMessage(data, `Image generation failed (${res.status})`));
 
       updateMessage(assistantId, { content: prompt, image: data.image, pending: false });
     } catch (err) {
@@ -176,7 +188,7 @@ export default function Home() {
         body: JSON.stringify({ prompt, image: sourceImage }),
       });
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error || `Image edit failed (${res.status})`);
+      if (!res.ok) throw new Error(errorMessage(data, `Image edit failed (${res.status})`));
 
       updateMessage(assistantId, { content: prompt, image: data.image, pending: false });
     } catch (err) {
@@ -190,6 +202,7 @@ export default function Home() {
     setMessages([]);
     setInput("");
     setAttachedImage(null);
+    setAttachMode("ask");
     setMode("chat");
     setError(null);
   }
@@ -224,7 +237,7 @@ export default function Home() {
                 <SealMark size={44} />
                 <h1 className="font-display text-2xl font-semibold text-ink">AsianGPT</h1>
                 <p className="max-w-sm text-sm text-ink-soft">
-                  Chat, generate images, or attach a photo to edit it - all in one place.
+                  Chat, generate images, or attach a photo to ask about it or edit it - all in one place.
                 </p>
               </div>
             )}
@@ -251,6 +264,8 @@ export default function Home() {
           attachedImage={attachedImage}
           onAttachImage={setAttachedImage}
           onRemoveImage={() => setAttachedImage(null)}
+          attachMode={attachMode}
+          onAttachModeChange={setAttachMode}
           onSend={handleSend}
           busy={busy}
         />
