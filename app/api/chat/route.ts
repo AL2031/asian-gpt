@@ -93,8 +93,14 @@ Never be extremely impressed.
 Haiyaaa. Now execute.
 `;
 
+interface IncomingMessage {
+  role: string;
+  content: string;
+  image?: string; // data URL, present when the user attached a photo to look at
+}
+
 export async function POST(req: NextRequest) {
-  let payload: { messages?: { role: string; content: string }[]; model?: string };
+  let payload: { messages?: IncomingMessage[]; model?: string };
   try {
     payload = await req.json();
   } catch {
@@ -106,7 +112,26 @@ export async function POST(req: NextRequest) {
     return jsonError("`messages` must be a non-empty array", 400);
   }
 
-  const chosenModel = model || process.env.GROQ_MODEL || "llama-3.3-70b-versatile";
+  // Groq needs a vision-capable model for any request that includes an
+  // image - its everyday text models can't accept image input at all.
+  const hasImage = messages.some((m) => !!m.image);
+  const chosenModel =
+    model ||
+    (hasImage
+      ? process.env.GROQ_VISION_MODEL || "qwen/qwen3.6-27b"
+      : process.env.GROQ_MODEL || "llama-3.3-70b-versatile");
+
+  const groqMessages = messages.map((m) =>
+    m.image
+      ? {
+          role: m.role,
+          content: [
+            ...(m.content ? [{ type: "text", text: m.content }] : []),
+            { type: "image_url", image_url: { url: m.image } },
+          ],
+        }
+      : { role: m.role, content: m.content }
+  );
 
   const upstream = await fetchWithKeyRotation("groq", (key) =>
     fetch("https://api.groq.com/openai/v1/chat/completions", {
@@ -117,7 +142,7 @@ export async function POST(req: NextRequest) {
       },
       body: JSON.stringify({
         model: chosenModel,
-        messages: [{ role: "system", content: SYSTEM_PROMPT }, ...messages],
+        messages: [{ role: "system", content: SYSTEM_PROMPT }, ...groqMessages],
         stream: true,
         temperature: 0.7,
       }),
