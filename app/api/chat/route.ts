@@ -114,12 +114,12 @@ export async function POST(req: NextRequest) {
 
   // Groq needs a vision-capable model for any request that includes an
   // image - its everyday text models can't accept image input at all.
-  const hasImage = messages.some((m) => !!m.image);
+const hasImage = messages.some((m) => !!m.image);
   const chosenModel =
     model ||
     (hasImage
       ? process.env.GROQ_VISION_MODEL || "qwen/qwen3.6-27b"
-      : process.env.GROQ_MODEL || "llama-3.3-70b-versatile");
+      : process.env.GROQ_MODEL || "qwen/qwen3.6-27b");
 
   const groqMessages = messages.map((m) =>
     m.image
