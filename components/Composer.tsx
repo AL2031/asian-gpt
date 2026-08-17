@@ -1,7 +1,7 @@
 "use client";
 
 import { ChangeEvent, KeyboardEvent, useRef } from "react";
-import { Paperclip, Sparkles, X, ArrowUp } from "lucide-react";
+import { Paperclip, Sparkles, X, ArrowUp, Eye, Wand2 } from "lucide-react";
 
 interface ComposerProps {
   value: string;
@@ -11,6 +11,8 @@ interface ComposerProps {
   attachedImage: string | null;
   onAttachImage: (dataUrl: string) => void;
   onRemoveImage: () => void;
+  attachMode: "ask" | "edit";
+  onAttachModeChange: (m: "ask" | "edit") => void;
   onSend: () => void;
   busy: boolean;
 }
@@ -23,6 +25,8 @@ export function Composer({
   attachedImage,
   onAttachImage,
   onRemoveImage,
+  attachMode,
+  onAttachModeChange,
   onSend,
   busy,
 }: ComposerProps) {
@@ -45,7 +49,9 @@ export function Composer({
   }
 
   const placeholder = attachedImage
-    ? "Describe how to edit this image..."
+    ? attachMode === "edit"
+      ? "Describe how to edit this image..."
+      : "Ask something about this image..."
     : mode === "generate"
     ? "Describe the image to generate..."
     : "Message AsianGPT...";
@@ -54,7 +60,7 @@ export function Composer({
     <div className="border-t border-line bg-paper px-4 pb-4 pt-3 sm:px-8">
       <div className="mx-auto max-w-3xl">
         {attachedImage && (
-          <div className="mb-2 flex items-center gap-2">
+          <div className="mb-2 flex flex-wrap items-center gap-2.5">
             <div className="relative">
               <img
                 src={attachedImage}
@@ -69,17 +75,41 @@ export function Composer({
                 <X size={12} />
               </button>
             </div>
-            <span className="text-xs text-ink-soft">
-              Attached - your next message will edit this image.
-            </span>
+
+            <div className="flex overflow-hidden rounded-stamp border border-line">
+              <button
+                onClick={() => onAttachModeChange("ask")}
+                aria-pressed={attachMode === "ask"}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
+                  attachMode === "ask"
+                    ? "bg-ink text-paper-raised"
+                    : "bg-paper-raised text-ink-soft hover:text-ink"
+                }`}
+              >
+                <Eye size={13} />
+                Ask about it
+              </button>
+              <button
+                onClick={() => onAttachModeChange("edit")}
+                aria-pressed={attachMode === "edit"}
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs font-medium transition-colors ${
+                  attachMode === "edit"
+                    ? "bg-ink text-paper-raised"
+                    : "bg-paper-raised text-ink-soft hover:text-ink"
+                }`}
+              >
+                <Wand2 size={13} />
+                Edit it
+              </button>
+            </div>
           </div>
         )}
 
         <div className="flex items-end gap-2 rounded-stamp border border-line bg-paper-raised px-3 py-2 focus-within:ring-2 focus-within:ring-seal/40">
           <button
             onClick={() => fileRef.current?.click()}
-            aria-label="Attach an image to edit"
-            title="Attach an image to edit"
+            aria-label="Attach an image"
+            title="Attach an image to ask about or edit"
             className="mb-1 shrink-0 rounded-stamp p-1.5 text-ink-soft hover:bg-paper hover:text-ink"
           >
             <Paperclip size={18} />
